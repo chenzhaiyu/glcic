@@ -1,6 +1,8 @@
 import json
 import os
 import argparse
+import warnings
+
 from torch.utils.data import DataLoader
 from torch.optim import Adadelta, Adam
 from torch.nn import BCELoss, DataParallel
@@ -54,8 +56,10 @@ def main(args):
     # Preparation
     # ================================================
     if not torch.cuda.is_available():
-        raise Exception('At least one gpu must be available.')
-    gpu = torch.device('cuda:0')
+        device = torch.device('cpu')
+        warnings.warn('No GPU available. Using CPU')
+    else:
+        device = torch.device('cuda:0')
 
     # create result directory (if necessary)
     if not os.path.exists(args.result_dir):
@@ -114,10 +118,10 @@ def main(args):
     # make mpv & alpha tensors
     mpv = torch.tensor(
         mpv.reshape(1, 3, 1, 1),
-        dtype=torch.float32).to(gpu)
+        dtype=torch.float32).to(device)
     alpha = torch.tensor(
         args.alpha,
-        dtype=torch.float32).to(gpu)
+        dtype=torch.float32).to(device)
 
     # ================================================
     # Training Phase 1
@@ -130,7 +134,7 @@ def main(args):
             map_location='cpu'))
     if args.data_parallel:
         model_cn = DataParallel(model_cn)
-    model_cn = model_cn.to(gpu)
+    model_cn = model_cn.to(device)
     opt_cn = Adadelta(model_cn.parameters())
 
     # training
@@ -139,7 +143,7 @@ def main(args):
     while pbar.n < args.steps_1:
         for x in train_loader:
             # forward
-            x = x.to(gpu)
+            x = x.to(device)
             mask = gen_input_mask(
                 shape=(x.shape[0], 1, x.shape[2], x.shape[3]),
                 hole_size=(
@@ -149,7 +153,7 @@ def main(args):
                     (args.ld_input_size, args.ld_input_size),
                     (x.shape[3], x.shape[2])),
                 max_holes=args.max_holes,
-            ).to(gpu)
+            ).to(device)
             x_mask = x - x * mask + mpv * mask
             input = torch.cat((x_mask, mask), dim=1)
             output = model_cn(input)
@@ -173,7 +177,7 @@ def main(args):
                     with torch.no_grad():
                         x = sample_random_batch(
                             test_dset,
-                            batch_size=args.num_test_completions).to(gpu)
+                            batch_size=args.num_test_completions).to(device)
                         mask = gen_input_mask(
                             shape=(x.shape[0], 1, x.shape[2], x.shape[3]),
                             hole_size=(
@@ -182,7 +186,7 @@ def main(args):
                             hole_area=gen_hole_area(
                                 (args.ld_input_size, args.ld_input_size),
                                 (x.shape[3], x.shape[2])),
-                            max_holes=args.max_holes).to(gpu)
+                            max_holes=args.max_holes).to(device)
                         x_mask = x - x * mask + mpv * mask
                         input = torch.cat((x_mask, mask), dim=1)
                         output = model_cn(input)
@@ -227,7 +231,7 @@ def main(args):
             map_location='cpu'))
     if args.data_parallel:
         model_cd = DataParallel(model_cd)
-    model_cd = model_cd.to(gpu)
+    model_cd = model_cd.to(device)
     opt_cd = Adadelta(model_cd.parameters())
     bceloss = BCELoss()
 
@@ -237,7 +241,7 @@ def main(args):
     while pbar.n < args.steps_2:
         for x in train_loader:
             # fake forward
-            x = x.to(gpu)
+            x = x.to(device)
             hole_area_fake = gen_hole_area(
                 (args.ld_input_size, args.ld_input_size),
                 (x.shape[3], x.shape[2]))
@@ -247,23 +251,23 @@ def main(args):
                     (args.hole_min_w, args.hole_max_w),
                     (args.hole_min_h, args.hole_max_h)),
                 hole_area=hole_area_fake,
-                max_holes=args.max_holes).to(gpu)
-            fake = torch.zeros((len(x), 1)).to(gpu)
+                max_holes=args.max_holes).to(device)
+            fake = torch.zeros((len(x), 1)).to(device)
             x_mask = x - x * mask + mpv * mask
             input_cn = torch.cat((x_mask, mask), dim=1)
             output_cn = model_cn(input_cn)
             input_gd_fake = output_cn.detach()
             input_ld_fake = crop(input_gd_fake, hole_area_fake)
             output_fake = model_cd((
-                input_ld_fake.to(gpu),
-                input_gd_fake.to(gpu)))
+                input_ld_fake.to(device),
+                input_gd_fake.to(device)))
             loss_fake = bceloss(output_fake, fake)
 
             # real forward
             hole_area_real = gen_hole_area(
                 (args.ld_input_size, args.ld_input_size),
                 (x.shape[3], x.shape[2]))
-            real = torch.ones((len(x), 1)).to(gpu)
+            real = torch.ones((len(x), 1)).to(device)
             input_gd_real = x
             input_ld_real = crop(input_gd_real, hole_area_real)
             output_real = model_cd((input_ld_real, input_gd_real))
@@ -290,7 +294,7 @@ def main(args):
                     with torch.no_grad():
                         x = sample_random_batch(
                             test_dset,
-                            batch_size=args.num_test_completions).to(gpu)
+                            batch_size=args.num_test_completions).to(device)
                         mask = gen_input_mask(
                             shape=(x.shape[0], 1, x.shape[2], x.shape[3]),
                             hole_size=(
@@ -299,7 +303,7 @@ def main(args):
                             hole_area=gen_hole_area(
                                 (args.ld_input_size, args.ld_input_size),
                                 (x.shape[3], x.shape[2])),
-                            max_holes=args.max_holes).to(gpu)
+                            max_holes=args.max_holes).to(device)
                         x_mask = x - x * mask + mpv * mask
                         input = torch.cat((x_mask, mask), dim=1)
                         output = model_cn(input)
@@ -338,7 +342,7 @@ def main(args):
     while pbar.n < args.steps_3:
         for x in train_loader:
             # forward model_cd
-            x = x.to(gpu)
+            x = x.to(device)
             hole_area_fake = gen_hole_area(
                 (args.ld_input_size, args.ld_input_size),
                 (x.shape[3], x.shape[2]))
@@ -348,10 +352,10 @@ def main(args):
                     (args.hole_min_w, args.hole_max_w),
                     (args.hole_min_h, args.hole_max_h)),
                 hole_area=hole_area_fake,
-                max_holes=args.max_holes).to(gpu)
+                max_holes=args.max_holes).to(device)
 
             # fake forward
-            fake = torch.zeros((len(x), 1)).to(gpu)
+            fake = torch.zeros((len(x), 1)).to(device)
             x_mask = x - x * mask + mpv * mask
             input_cn = torch.cat((x_mask, mask), dim=1)
             output_cn = model_cn(input_cn)
@@ -364,7 +368,7 @@ def main(args):
             hole_area_real = gen_hole_area(
                 (args.ld_input_size, args.ld_input_size),
                 (x.shape[3], x.shape[2]))
-            real = torch.ones((len(x), 1)).to(gpu)
+            real = torch.ones((len(x), 1)).to(device)
             input_gd_real = x
             input_ld_real = crop(input_gd_real, hole_area_real)
             output_real = model_cd((input_ld_real, input_gd_real))
@@ -411,7 +415,7 @@ def main(args):
                     with torch.no_grad():
                         x = sample_random_batch(
                             test_dset,
-                            batch_size=args.num_test_completions).to(gpu)
+                            batch_size=args.num_test_completions).to(device)
                         mask = gen_input_mask(
                             shape=(x.shape[0], 1, x.shape[2], x.shape[3]),
                             hole_size=(
@@ -420,7 +424,7 @@ def main(args):
                             hole_area=gen_hole_area(
                                 (args.ld_input_size, args.ld_input_size),
                                 (x.shape[3], x.shape[2])),
-                            max_holes=args.max_holes).to(gpu)
+                            max_holes=args.max_holes).to(device)
                         x_mask = x - x * mask + mpv * mask
                         input = torch.cat((x_mask, mask), dim=1)
                         output = model_cn(input)

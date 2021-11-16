@@ -21,6 +21,7 @@ parser.add_argument('--hole_min_w', type=int, default=24)
 parser.add_argument('--hole_max_w', type=int, default=48)
 parser.add_argument('--hole_min_h', type=int, default=24)
 parser.add_argument('--hole_max_h', type=int, default=48)
+parser.add_argument('--mask', type=str, default=None)  # path to user-defined mask
 
 
 def main(args):
@@ -29,6 +30,8 @@ def main(args):
     args.config = os.path.expanduser(args.config)
     args.input_img = os.path.expanduser(args.input_img)
     args.output_img = os.path.expanduser(args.output_img)
+    if args.mask:
+        args.mask = os.path.expanduser(args.mask)
 
     # =============================================
     # Load model
@@ -49,15 +52,25 @@ def main(args):
     x = transforms.ToTensor()(img)
     x = torch.unsqueeze(x, dim=0)
 
-    # create mask
-    mask = gen_input_mask(
-        shape=(1, 1, x.shape[2], x.shape[3]),
-        hole_size=(
-            (args.hole_min_w, args.hole_max_w),
-            (args.hole_min_h, args.hole_max_h),
-        ),
-        max_holes=args.max_holes,
-    )
+    # load or create mask
+    if args.mask:
+        # todo: handle NoneType
+        mask = Image.open(args.mask)
+        mask = transforms.Resize((args.img_size, args.img_size))(mask)
+        mask = transforms.ToTensor()(mask)
+        mask[mask < 0.5] = 0
+        mask[mask > 0.5] = 1
+        mask = torch.unsqueeze(mask, dim=0)
+        mask = 1 - mask
+    else:
+        mask = gen_input_mask(
+            shape=(1, 1, x.shape[2], x.shape[3]),
+            hole_size=(
+                (args.hole_min_w, args.hole_max_w),
+                (args.hole_min_h, args.hole_max_h),
+            ),
+            max_holes=args.max_holes,
+        )
 
     # inpaint
     model.eval()

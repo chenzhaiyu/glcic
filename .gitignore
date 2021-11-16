@@ -142,3 +142,6 @@ cython_debug/
 
 # macOS
 .DS_Store
+
+# weights
+weights/
