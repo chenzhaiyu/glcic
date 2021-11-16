@@ -6,18 +6,26 @@ from PIL import Image
 
 
 class ImageDataset(data.Dataset):
-    def __init__(self, data_dir, transform=None, recursive_search=False):
+    def __init__(self, data_dir, transform=None, recursive_search=False, nc=3):
         super(ImageDataset, self).__init__()
         self.data_dir = os.path.expanduser(data_dir)
         self.transform = transform
         self.imgpaths = self.__load_imgpaths_from_dir(self.data_dir, walk=recursive_search)
+        self.nc = nc
 
     def __len__(self):
         return len(self.imgpaths)
 
-    def __getitem__(self, index, color_format='RGB'):
+    def __getitem__(self, index):
         img = Image.open(self.imgpaths[index])
-        img = img.convert(color_format)
+
+        if self.nc == 3:
+            img = img.convert('RGB')
+        elif self.nc == 1:
+            pass
+        else:
+            raise ValueError('nc should be 1 or 3')
+
         if self.transform is not None:
             img = self.transform(img)
         return img

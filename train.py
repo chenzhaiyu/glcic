@@ -49,6 +49,7 @@ parser.add_argument('--num_test_completions', type=int, default=16)
 parser.add_argument('--mpv', nargs=3, type=float, default=None)
 parser.add_argument('--alpha', type=float, default=4e-4)
 parser.add_argument('--arc', type=str, choices=['celeba', 'places2'], default='celeba')
+parser.add_argument('--nc', type=int, default=3)
 
 
 def main(args):
@@ -78,11 +79,11 @@ def main(args):
     train_dset = ImageDataset(
         os.path.join(args.data_dir, 'train'),
         trnsfm,
-        recursive_search=args.recursive_search)
+        recursive_search=args.recursive_search, nc=args.nc)
     test_dset = ImageDataset(
         os.path.join(args.data_dir, 'test'),
         trnsfm,
-        recursive_search=args.recursive_search)
+        recursive_search=args.recursive_search, nc=args.nc)
     train_loader = DataLoader(
         train_dset,
         batch_size=(args.bsize // args.bdivs),
@@ -90,7 +91,7 @@ def main(args):
 
     # compute mpv (mean pixel value) of training dataset
     if args.mpv is None:
-        mpv = np.zeros(shape=(3,))
+        mpv = np.zeros(shape=(args.nc,))
         pbar = tqdm(
             total=len(train_dset.imgpaths),
             desc='computing mean pixel value of training dataset...')
@@ -106,7 +107,7 @@ def main(args):
 
     # save training config
     mpv_json = []
-    for i in range(3):
+    for i in range(args.nc):
         mpv_json.append(float(mpv[i]))
     args_dict = vars(args)
     args_dict['mpv'] = mpv_json
@@ -117,7 +118,7 @@ def main(args):
 
     # make mpv & alpha tensors
     mpv = torch.tensor(
-        mpv.reshape(1, 3, 1, 1),
+        mpv.reshape(1, args.nc, 1, 1),
         dtype=torch.float32).to(device)
     alpha = torch.tensor(
         args.alpha,
@@ -127,7 +128,7 @@ def main(args):
     # Training Phase 1
     # ================================================
     # load completion network
-    model_cn = CompletionNetwork()
+    model_cn = CompletionNetwork(args.nc)
     if args.init_model_cn is not None:
         model_cn.load_state_dict(torch.load(
             args.init_model_cn,
@@ -222,8 +223,8 @@ def main(args):
     # ================================================
     # load context discriminator
     model_cd = ContextDiscriminator(
-        local_input_shape=(3, args.ld_input_size, args.ld_input_size),
-        global_input_shape=(3, args.cn_input_size, args.cn_input_size),
+        local_input_shape=(args.nc, args.ld_input_size, args.ld_input_size),
+        global_input_shape=(args.nc, args.cn_input_size, args.cn_input_size),
         arc=args.arc)
     if args.init_model_cd is not None:
         model_cd.load_state_dict(torch.load(

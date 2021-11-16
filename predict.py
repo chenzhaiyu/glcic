@@ -22,6 +22,7 @@ parser.add_argument('--hole_max_w', type=int, default=48)
 parser.add_argument('--hole_min_h', type=int, default=24)
 parser.add_argument('--hole_max_h', type=int, default=48)
 parser.add_argument('--mask', type=str, default=None)  # path to user-defined mask
+parser.add_argument('--nc', type=int, defaults=3)
 
 
 def main(args):
@@ -38,7 +39,7 @@ def main(args):
     # =============================================
     with open(args.config, 'r') as f:
         config = json.load(f)
-    mpv = torch.tensor(config['mpv']).view(1, 3, 1, 1)
+    mpv = torch.tensor(config['mpv']).view(1, args.nc, 1, 1)
     model = CompletionNetwork()
     model.load_state_dict(torch.load(args.model, map_location='cpu'))
 
