@@ -191,6 +191,8 @@ def main(args):
                         x_mask = x - x * mask + mpv * mask
                         input = torch.cat((x_mask, mask), dim=1)
                         output = model_cn(input)
+
+                        if x.shape[1] == 1:
                             x = torch.cat((x, x, x), dim=1)
                         if x_mask.shape[1] == 1:
                             x_mask = torch.cat((x_mask, x_mask, x_mask), dim=1)
