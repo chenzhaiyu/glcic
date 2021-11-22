@@ -191,6 +191,12 @@ def main(args):
                         x_mask = x - x * mask + mpv * mask
                         input = torch.cat((x_mask, mask), dim=1)
                         output = model_cn(input)
+                            x = torch.cat((x, x, x), dim=1)
+                        if x_mask.shape[1] == 1:
+                            x_mask = torch.cat((x_mask, x_mask, x_mask), dim=1)
+                        if output.shape[1] == 1:
+                            output = torch.cat((output, output, output), dim=1)
+
                         completed = poisson_blend(x_mask, output, mask)
                         imgs = torch.cat((
                             x.cpu(),
@@ -308,6 +314,14 @@ def main(args):
                         x_mask = x - x * mask + mpv * mask
                         input = torch.cat((x_mask, mask), dim=1)
                         output = model_cn(input)
+
+                        if x.shape[1] == 1:
+                            x = torch.cat((x, x, x), dim=1)
+                        if x_mask.shape[1] == 1:
+                            x_mask = torch.cat((x_mask, x_mask, x_mask), dim=1)
+                        if output.shape[1] == 1:
+                            output = torch.cat((output, output, output), dim=1)
+
                         completed = poisson_blend(x_mask, output, mask)
                         imgs = torch.cat((
                             x.cpu(),
@@ -429,6 +443,14 @@ def main(args):
                         x_mask = x - x * mask + mpv * mask
                         input = torch.cat((x_mask, mask), dim=1)
                         output = model_cn(input)
+
+                        if x.shape[1] == 1:
+                            x = torch.cat((x, x, x), dim=1)
+                        if x_mask.shape[1] == 1:
+                            x_mask = torch.cat((x_mask, x_mask, x_mask), dim=1)
+                        if output.shape[1] == 1:
+                            output = torch.cat((output, output, output), dim=1)
+
                         completed = poisson_blend(x_mask, output, mask)
                         imgs = torch.cat((
                             x.cpu(),

@@ -136,10 +136,6 @@ def poisson_blend(input, output, mask):
     output = output.clone().cpu()
     mask = mask.clone().cpu()
     mask = torch.cat((mask, mask, mask), dim=1)  # convert to 3-channel format
-    if input.shape[1] == 1:
-        input = torch.cat((input, input, input), dim=1)
-    if output.shape[1] == 1:
-        output = torch.cat((output, output, output), dim=1)
     num_samples = input.shape[0]
     ret = []
     for i in range(num_samples):
